@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交互式趋势图 - 自定义数据</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ===== 左侧控制面板 ===== */
+        .sidebar {
+            width: 340px;
+            min-width: 340px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #334155;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .sidebar-header p {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .panel-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .panel-section h3 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 模式切换 */
+        .mode-toggle {
+            display: flex;
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 3px;
+            gap: 3px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .mode-btn.active {
+            background: #6366f1;
+            color: white;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+        }
+
+        .mode-btn:hover:not(.active) {
+            color: #e2e8f0;
+        }
+
+        /* 输入区域 */
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 10px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus {
+            border-color: #6366f1;
+        }
+
+        .input-group input::placeholder {
+            color: #475569;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #6366f1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4f46e5;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px solid #334155;
+        }
+
+        .btn-ghost:hover {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 0.78rem;
+        }
+
+        /* 系列管理 */
+        .series-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .series-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #0f172a;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .series-item.active {
+            border-color: #6366f1;
+            background: #1e1b4b;
+        }
+
+        .series-item:hover:not(.active) {
+            background: #1a2332;
+        }
+
+        .series-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .series-name {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+
+        .series-count {
+            font-size: 0.75rem;
+            color: #64748b;
+            background: #1e293b;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .series-delete {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 0 4px;
+            transition: color 0.2s;
+        }
+
+        .series-delete:hover {
+            color: #ef4444;
+        }
+
+        .add-series-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .add-series-row input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .add-series-row input:focus {
+            border-color: #6366f1;
+        }
+
+        /* 数据点列表 */
+        .points-list {
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .points-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .points-list::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 2px;
+        }
+
+        .point-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            background: #0f172a;
+            border-radius: 6px;
+            font-size: 0.82rem;
+        }
+
+        .point-item .coords {
+            color: #94a3b8;
+        }
+
+        .point-item .coords span {
+            color: #e2e8f0;
+            font-weight: 600;
+        }
+
+        .point-remove {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .point-remove:hover {
+            color: #ef4444;
+        }
+
+        /* 操作按钮 */
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ===== 右侧图表区域 ===== */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .chart-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .chart-toolbar .hint {
+            font-size: 0.85rem;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hint-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .chart-type-btns {
+            display: flex;
+            gap: 4px;
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 3px;
+        }
+
+        .chart-type-btn {
+            padding: 6px 14px;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 0.82rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .chart-type-btn.active {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .chart-wrapper {
+            flex: 1;
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            cursor: crosshair;
+        }
+
+        .chart-wrapper canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #334155;
+            color: #e2e8f0;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .app {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                min-width: 100%;
+                max-height: 45vh;
+            }
+            .main {
+                min-height: 55vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- 左侧面板 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>✏️ 交互式趋势图</h1>
+                <p>点击图表或输入坐标来添加数据点</p>
+            </div>
+
+            <!-- 模式切换 -->
+            <div class="panel-section">
+                <h3>📌 添加模式</h3>
+                <div class="mode-toggle">
+                    <button class="mode-btn active" onclick="setMode('click')" id="modeClick">🖱️ 点击添加</button>
+                    <button class="mode-btn" onclick="setMode('input')" id="modeInput">⌨️ 输入坐标</button>
+                </div>
+                <div class="input-group" id="inputGroup" style="display:none;">
+                    <input type="number" id="inputX" placeholder="X 值" step="any">
+                    <input type="number" id="inputY" placeholder="Y 值" step="any">
+                    <button class="btn btn-primary" onclick="addPointFromInput()">添加</button>
+                </div>
+            </div>
+
+            <!-- 图表类型 -->
+            <div class="panel-section">
+                <h3>📊 图表类型</h3>
+                <div class="chart-type-btns">
+                    <button class="chart-type-btn active" onclick="setChartType('line', this)">折线图</button>
+                    <button class="chart-type-btn" onclick="setChartType('bar', this)">柱状图</button>
+                    <button class="chart-type-btn" onclick="setChartType('scatter', this)">散点图</button>
+                </div>
+            </div>
+
+            <!-- 数据系列 -->
+            <div class="panel-section">
+                <h3>📈 数据系列</h3>
+                <div class="series-list" id="seriesList"></div>
+                <div class="add-series-row">
+                    <input type="text" id="newSeriesName" placeholder="新系列名称" maxlength="20">
+                    <button class="btn btn-primary btn-sm" onclick="addSeries()">添加</button>
+                </div>
+            </div>
+
+            <!-- 当前数据点 -->
+            <div class="panel-section" style="flex:1;">
+                <h3>🔢 数据点 (<span id="pointCount">0</span>)</h3>
+                <div class="points-list" id="pointsList"></div>
+            </div>
+
+            <!-- 操作 -->
+            <div class="panel-section">
+                <div class="actions">
+                    <button class="btn btn-ghost btn-sm" onclick="undoPoint()">↩️ 撤销</button>
+                    <button class="btn btn-ghost btn-sm" onclick="clearCurrentSeries()">🗑️ 清空当前</button>
+                    <button class="btn btn-ghost btn-sm" onclick="clearAll()">💥 清空全部</button>
+                    <button class="btn btn-ghost btn-sm" onclick="exportData()">📥 导出JSON</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧图表 -->
+        <div class="main">
+            <div class="chart-toolbar">
+                <div class="hint" id="hintText">
+                    <div class="hint-dot"></div>
+                    <span>点击图表区域添加数据点</span>
+                </div>
+            </div>
+            <div class="chart-wrapper" id="chartWrapper">
+                <canvas id="mainChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ===== 状态管理 =====
+        const PALETTE = [
+            '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6',
+            '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#06b6d4'
+        ];
+
+        let state = {
+            mode: 'click',        // 'click' | 'input'
+            chartType: 'line',    // 'line' | 'bar' | 'scatter'
+            activeSeries: 0,
+            series: [],
+            history: []           // for undo
+        };
+
+        let chart = null;
+
+        // ===== 初始化 =====
+        function init() {
+            addSeries('系列 A');
+            addSeries('系列 B');
+            createChart();
+            bindChartClick();
+        }
+
+        // ===== 系列管理 =====
+        function addSeries(name) {
+            if (!name) {
+                name = document.getElementById('newSeriesName').value.trim() || `系列 ${String.fromCharCode(65 + state.series.length)}`;
+            }
+            const colorIndex = state.series.length % PALETTE.length;
+            state.series.push({
+                name: name,
+                color: PALETTE[colorIndex],
+                points: []  // [{x, y}]
+            });
+            state.activeSeries = state.series.length - 1;
+            document.getElementById('newSeriesName').value = '';
+            renderSeriesList();
+            updateChart();
+        }
+
+        function selectSeries(index) {
+            state.activeSeries = index;
+            renderSeriesList();
+            renderPointsList();
+        }
+
+        function deleteSeries(index, e) {
+            e.stopPropagation();
+            if (state.series.length <= 1) {
+                showToast('至少保留一个数据系列');
+                return;
+            }
+            state.series.splice(index, 1);
+            if (state.activeSeries >= state.series.length) {
+                state.activeSeries = state.series.length - 1;
+            }
+            renderSeriesList();
+            renderPointsList();
+            updateChart();
+            showToast('已删除系列');
+        }
+
+        function renderSeriesList() {
+            const container = document.getElementById('seriesList');
+            container.innerHTML = state.series.map((s, i) => `
+                <div class="series-item ${i === state.activeSeries ? 'active' : ''}" onclick="selectSeries(${i})">
+                    <div class="series-color" style="background:${s.color}"></div>
+                    <span class="series-name">${s.name}</span>
+                    <span class="series-count">${s.points.length}点</span>
+                    <button class="series-delete" onclick="deleteSeries(${i}, event)" title="删除">×</button>
+                </div>
+            `).join('');
+        }
+
+        // ===== 数据点管理 =====
+        function addPoint(x, y) {
+            const series = state.series[state.activeSeries];
+            series.points.push({ x, y });
+            state.history.push({ seriesIndex: state.activeSeries, pointIndex: series.points.length - 1 });
+            renderSeriesList();
+            renderPointsList();
+            updateChart();
+        }
+
+        function removePoint(pointIndex) {
+            const series = state.series[state.activeSeries];
+            series.points.splice(pointIndex, 1);
+            renderSeriesList();
+            renderPointsList();
+            updateChart();
+        }
+
+        function undoPoint() {
+            if (state.history.length === 0) {
+                showToast('没有可撤销的操作');
+                return;
+            }
+            const last = state.history.pop();
+            state.series[last.seriesIndex].points.splice(last.pointIndex, 1);
+            renderSeriesList();
+            renderPointsList();
+            updateChart();
+            showToast('已撤销');
+        }
+
+        function clearCurrentSeries() {
+            const series = state.series[state.activeSeries];
+            if (series.points.length === 0) return;
+            series.points = [];
+            state.history = state.history.filter(h => h.seriesIndex !== state.activeSeries);
+            renderSeriesList();
+            renderPointsList();
+            updateChart();
+            showToast('已清空当前系列');
+        }
+
+        function clearAll() {
+            state.series.forEach(s => s.points = []);
+            state.history = [];
+            renderSeriesList();
+            renderPointsList();
+            updateChart();
+            showToast('已清空全部数据');
+        }
+
+        function renderPointsList() {
+            const series = state.series[state.activeSeries];
+            const container = document.getElementById('pointsList');
+            document.getElementById('pointCount').textContent = series.points.length;
+
+            if (series.points.length === 0) {
+                container.innerHTML = '<div style="text-align:center;color:#475569;padding:20px;font-size:0.85rem;">暂无数据点</div>';
+                return;
+            }
+
+            container.innerHTML = series.points.map((p, i) => `
+                <div class="point-item">
+                    <span class="coords">X: <span>${formatNum(p.x)}</span> &nbsp; Y: <span>${formatNum(p.y)}</span></span>
+                    <button class="point-remove" onclick="removePoint(${i})" title="删除">✕</button>
+                </div>
+            `).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatNum(n) {
+            return Number.isInteger(n) ? n : n.toFixed(2);
+        }
+
+        // ===== 模式切换 =====
+        function setMode(mode) {
+            state.mode = mode;
+            document.getElementById('modeClick').classList.toggle('active', mode === 'click');
+            document.getElementById('modeInput').classList.toggle('active', mode === 'input');
+            document.getElementById('inputGroup').style.display = mode === 'input' ? 'flex' : 'none';
+            document.getElementById('chartWrapper').style.cursor = mode === 'click' ? 'crosshair' : 'default';
+
+            const hint = document.getElementById('hintText').querySelector('span');
+            hint.textContent = mode === 'click' ? '点击图表区域添加数据点' : '在左侧输入坐标后点击添加';
+        }
+
+        function addPointFromInput() {
+            const xVal = document.getElementById('inputX').value;
+            const yVal = document.getElementById('inputY').value;
+            if (xVal === '' || yVal === '') {
+                showToast('请输入 X 和 Y 值');
+                return;
+            }
+            const x = parseFloat(xVal);
+            const y = parseFloat(yVal);
+            if (isNaN(x) || isNaN(y)) {
+                showToast('请输入有效的数字');
+                return;
+            }
+            addPoint(x, y);
+            document.getElementById('inputX').value = '';
+            document.getElementById('inputY').value = '';
+            document.getElementById('inputX').focus();
+            showToast(`已添加点 (${formatNum(x)}, ${formatNum(y)})`);
+        }
+
+        // ===== 图表 =====
+        function createChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: state.chartType === 'scatter' ? 'scatter' : 'line',
+                data: getChartData(),
+                options: getChartOptions()
+            });
+        }
+
+        function getChartData() {
+            if (state.chartType === 'scatter') {
+                return {
+                    datasets: state.series.map(s => ({
+                        label: s.name,
+                        data: s.points.map(p => ({ x: p.x, y: p.y })),
+                        backgroundColor: s.color + 'cc',
+                        borderColor: s.color,
+                        pointRadius: 7,
+                        pointHoverRadius: 10
+                    }))
+                };
+            }
+
+            return {
+                datasets: state.series.map(s => {
+                    const sorted = [...s.points].sort((a, b) => a.x - b.x);
+                    return {
+                        label: s.name,
+                        data: sorted.map(p => ({ x: p.x, y: p.y })),
+                        borderColor: s.color,
+                        backgroundColor: state.chartType === 'bar' ? s.color + '99' : s.color + '20',
+                        pointBackgroundColor: s.color,
+                        pointBorderColor: '#1e293b',
+                        pointBorderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 9,
+                        tension: 0.3,
+                        fill: state.chartType === 'line',
+                        borderWidth: 2.5,
+                        borderRadius: state.chartType === 'bar' ? 6 : 0
+                    };
+                })
+            };
+        }
+
+        function getChartOptions() {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 300 },
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            color: '#94a3b8',
+                            usePointStyle: true,
+                            padding: 20,
+                            font: { size: 13 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#94a3b8',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        padding: 12,
+                        callbacks: {
+                            label: function(ctx) {
+                                return `${ctx.dataset.label}: (${formatNum(ctx.parsed.x)}, ${formatNum(ctx.parsed.y)})`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        grid: { color: '#1e293b', lineWidth: 1 },
+                        ticks: { color: '#64748b', font: { size: 12 } },
+                        title: { display: true, text: 'X 轴', color: '#64748b' }
+                    },
+                    y: {
+                        grid: { color: '#1e293b', lineWidth: 1 },
+                        ticks: { color: '#64748b', font: { size: 12 } },
+                        title: { display: true, text: 'Y 轴', color: '#64748b' }
+                    }
+                }
+            };
+        }
+
+        function updateChart() {
+            if (!chart) return;
+            chart.data = getChartData();
+            chart.update('none');
+        }
+
+        function setChartType(type, btn) {
+            state.chartType = type;
+            document.querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            chart.destroy();
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: type === 'scatter' ? 'scatter' : (type === 'bar' ? 'bar' : 'line'),
+                data: getChartData(),
+                options: getChartOptions()
+            });
+        }
+
+        // ===== 点击图表添加点 =====
+        function bindChartClick() {
+            const wrapper = document.getElementById('chartWrapper');
+            wrapper.addEventListener('click', function(e) {
+                if (state.mode !== 'click') return;
+
+                const rect = chart.canvas.getBoundingClientRect();
+                const x = chart.scales.x.getValueForPixel(e.clientX - rect.left);
+                const y = chart.scales.y.getValueForPixel(e.clientY - rect.top);
+
+                if (x == null || y == null) return;
+
+                addPoint(
+                    Math.round(x * 100) / 100,
+                    Math.round(y * 100) / 100
+                );
+                showToast(`已添加点 (${formatNum(Math.round(x * 100) / 100)}, ${formatNum(Math.round(y * 100) / 100)})`);
+            });
+        }
+
+        // ===== 导出 =====
+        function exportData() {
+            const data = state.series.map(s => ({
+                name: s.name,
+                points: s.points
+            }));
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'trend-data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('数据已导出');
+        }
+
+        // ===== Toast =====
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // ===== 键盘快捷键 =====
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                undoPoint();
+            }
+            if (state.mode === 'input' && e.key === 'Enter') {
+                addPointFromInput();
+            }
+        });
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>
